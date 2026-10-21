@@ -1,0 +1,381 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Poller Screw Simulator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: twin C-arm-style view panels (AP | lateral) with plane controls beneath, shared insertion transport on top */
+:root{
+  --bg:#edf0f2; --surface:#ffffff; --view:#f8fafb; --ink:#16202a; --muted:#5a6774; --line:#d2d8de;
+  --accent:#0a7570; --accent-soft:#d6ecea; --warn:#b4480f; --warn-soft:#f6e3d7;
+  --cortex:#c8b38c; --canc:#f4ecdc; --canal:#e9dcc2; --nail:#47699c; --nail-hi:#7f9cc8;
+  --screw:#3b4148; --tendon:#d59a90; --axis:#7d8994;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e141a; --surface:#16202a; --view:#0b1016; --ink:#e4eaef; --muted:#93a1ae; --line:#29343f;
+  --accent:#3fbfb6; --accent-soft:#123634; --warn:#f08a4b; --warn-soft:#3a2214;
+  --cortex:#a8956f; --canc:#d8ccb4; --canal:#c4b392; --nail:#6f95cf; --nail-hi:#a9c2e6;
+  --screw:#d7dde3; --tendon:#b9756b; --axis:#6c7884; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e141a; --surface:#16202a; --view:#0b1016; --ink:#e4eaef; --muted:#93a1ae; --line:#29343f;
+  --accent:#3fbfb6; --accent-soft:#123634; --warn:#f08a4b; --warn-soft:#3a2214;
+  --cortex:#a8956f; --canc:#d8ccb4; --canal:#c4b392; --nail:#6f95cf; --nail-hi:#a9c2e6;
+  --screw:#d7dde3; --tendon:#b9756b; --axis:#6c7884; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 20px;display:grid;gap:20px}
+header{display:grid;gap:6px}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(28px,4vw,40px);line-height:1.05;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.lede{color:var(--muted);max-width:72ch;margin:0}
+.transport{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;gap:12px}
+.trow{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+button{font:600 14px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:7px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--surface);min-width:92px}
+.presets{display:flex;flex-wrap:wrap;gap:8px}
+.presets button{font-weight:500;font-size:13px}
+.presets button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.depth{flex:1 1 280px;display:flex;align-items:center;gap:10px;min-width:0}
+.depth input{flex:1;min-width:0;accent-color:var(--accent)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.phase{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.phase .step{font-family:var(--f-mono);font-size:12px;color:var(--surface);background:var(--ink);border-radius:4px;padding:1px 7px}
+.phase .txt{font-weight:600}
+.views{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+@media (max-width:760px){.views{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:grid;min-width:0}
+.phead{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;padding:12px 16px 10px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.phead h2{font-family:var(--f-display);font-weight:700;font-size:18px;margin:0}
+.phead .sub{font-size:13px;color:var(--muted)}
+.readout{display:flex;gap:16px;text-align:right}
+.readout div{display:grid}
+.readout .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.readout .v{font-family:var(--f-mono);font-size:17px;font-weight:500;font-variant-numeric:tabular-nums}
+.readout .v.ok{color:var(--accent)} .readout .v.bad{color:var(--warn)}
+.stage{background:var(--view);display:flex;justify-content:center}
+.stage svg{width:100%;max-width:440px;height:auto;display:block}
+.controls{padding:12px 16px 16px;display:grid;gap:12px;border-top:1px solid var(--line)}
+.ctl{display:grid;grid-template-columns:150px minmax(0,1fr) 64px;gap:10px;align-items:center}
+.ctl label{font-size:13px;color:var(--muted)}
+.ctl input[type=range]{width:100%;accent-color:var(--accent)}
+.ctl output{font-family:var(--f-mono);font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{font-size:12.5px;font-weight:500;padding:5px 9px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.note{font-size:13px;color:var(--muted);margin:0}
+.note b{color:var(--ink)}
+.flag{font-size:13px;border-radius:7px;padding:8px 10px;margin:0}
+.flag.good{background:var(--accent-soft)} .flag.bad{background:var(--warn-soft)}
+@media (max-width:460px){.ctl{grid-template-columns:1fr 56px}.ctl label{grid-column:1/-1}}
+.rules{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 20px;display:grid;gap:10px}
+.rules h2{font-family:var(--f-display);font-size:18px;margin:0}
+.rules ol{margin:0;padding-left:20px;display:grid;gap:6px;max-width:90ch}
+.rules .small{font-size:12.5px;color:var(--muted);margin:0}
+.rules a{color:var(--accent)}
+footer{border-top:1px solid var(--line);padding-top:14px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+footer strong{color:var(--ink);font-weight:600}
+svg text{font-family:var(--f-mono)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">IM nailing · proximal third tibia</div>
+    <h1>Poller Screw Simulator</h1>
+    <p class="lede">Watch a straight intramedullary nail pass a proximal-third tibial fracture in two planes. Without blocking screws the wide metaphysis lets the fragment stay in valgus and procurvatum. A poller screw on the concave side narrows the canal, steers the nail, and forces the reduction as the nail enters the narrow diaphysis.</p>
+  </header>
+
+  <section class="transport" aria-label="Nail insertion">
+    <div class="trow">
+      <button class="primary" id="play" type="button">Insert nail</button>
+      <div class="depth">
+        <label for="depth" class="note">Insertion depth</label>
+        <input type="range" id="depth" min="0" max="1000" value="0">
+        <span class="mono" id="depthOut" style="min-width:56px;text-align:right">0 mm</span>
+      </div>
+    </div>
+    <div class="trow">
+      <span class="note">Scenarios</span>
+      <div class="presets" id="presets">
+        <button type="button" data-p="none">No poller screws</button>
+        <button type="button" data-p="correct" aria-pressed="true">Pollers on concave side</button>
+        <button type="button" data-p="far">Screws too far from axis</button>
+        <button type="button" data-p="wrong">Screws on convex side</button>
+      </div>
+    </div>
+    <div class="phase" aria-live="polite"><span class="step" id="stepN">1</span><span class="txt" id="stepT"></span><span class="note" id="stepD"></span></div>
+  </section>
+
+  <section class="views" id="views"></section>
+
+  <section class="rules">
+    <h2>Placement rules the model demonstrates</h2>
+    <ol>
+      <li><b>Concave side, short fragment.</b> The screw goes in the metaphyseal (proximal) fragment, on the concave side of the deformity, so the nail is pushed toward the convexity.</li>
+      <li><b>Proximal tibia.</b> Valgus → <b>lateral</b> poller screw, inserted antero-posterior. Procurvatum (apex anterior) → <b>posterior</b> poller screw, inserted medio-lateral.</li>
+      <li><b>Distance from the planned nail path</b> ≈ nail radius + screw radius. Farther out leaves residual deformity; closer in over-corrects or blocks the nail.</li>
+      <li><b>Timing.</b> Place it about 1 cm from the fracture, before the guide wire and reaming. A Steinmann pin can mock up the position before the cortical screw goes in.</li>
+      <li><b>Deforming forces.</b> Patellar-tendon pull drives procurvatum. Semi-extended or suprapatellar nailing reduces it, and pollers hold what reduction achieves.</li>
+    </ol>
+    <p class="small">Teaching model in 2-D with rigid fragments: a straight nail (Herzog bend ignored), entry on the proximal fragment axis, 4.5 mm screws, and fracture 70 mm below the plateau. It shows direction and relative effect, not values for surgical planning. Further reading: Krettek C et al., JBJS Br 1999 (original description of Poller screws); <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7144892/" target="_blank" rel="noopener">PMC7144892</a>; <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7376586/" target="_blank" rel="noopener">PMC7376586</a>; <a href="https://surgeryreference.aofoundation.org/orthopedic-trauma/adult-trauma/basic-technique/basic-principles-of-im-nailing" target="_blank" rel="noopener">AO Surgery Reference</a>.</p>
+  </section>
+
+  <footer>
+    <span>© 2026 <strong>Dr Ranjith Yalamanchili</strong>. All rights reserved.</span>
+    <span>For orthopaedic teaching use.</span>
+  </footer>
+</div>
+
+<script>
+(function(){
+const Lp = 70, SCREW_D = 4.5, MAXD = 220;
+let nailD = 10;
+const rad = d => d*Math.PI/180, deg = r => r*180/Math.PI;
+const clear = () => nailD/2 + SCREW_D/2;
+
+/* Model coords: mm, y up, entry point E at origin of proximal fragment, fracture centre at world (0,0).
+   +x = concave side of the deformity (AP: lateral, lateral view: posterior). */
+const SHAPES = {
+  ap: {
+    prox: [[-34,-1],[-20,1],[-7,1],[-5,6],[-2,2],[2,2],[4,6.5],[7,1],[22,1],[37,-2],[39,-10],[36,-22],[28,-36],[20,-50],[16,-60],[15.5,-76],[-15.5,-64],[-16,-60],[-20,-50],[-27,-36],[-35,-20],[-37,-9]],
+    proxIn: [[-33,-5],[33,-5],[34,-11],[31,-22],[23,-36],[14,-50],[9.5,-60],[9,-73.5],[-9,-66.5],[-9.5,-60],[-14,-50],[-22,-36],[-31,-21],[-33.5,-11]],
+    dist: [[-15.5,6],[15.5,-6],[15,-30],[13.5,-70],[12.5,-120],[12.5,-200],[-12,-200],[-12.5,-120],[-13.5,-70],[-15,-30]],
+    distIn: [[-9,3.5],[9,-3.5],[8,-20],[6,-50],[5.5,-80],[5.5,-200],[-5.5,-200],[-5.5,-80],[-6,-50],[-8,-20]],
+    tendon:null
+  },
+  lat: {
+    prox: [[-15,-1],[-8,1],[0,1.5],[10,1],[22,0],[32,-2],[36,-6],[34,-14],[27,-26],[20,-38],[15,-50],[12.5,-60],[12,-74],[-12,-66],[-13,-58],[-16,-46],[-20,-36],[-21,-29],[-18,-18],[-16,-8]],
+    proxIn: [[-12,-4],[32,-5],[31,-13],[25,-24],[18,-36],[12,-48],[8.5,-60],[8,-72.7],[-8,-67.3],[-8.5,-60],[-11,-48],[-14,-36],[-15,-27],[-13,-14]],
+    dist: [[-12,4],[12,-4],[13,-40],[12.5,-100],[11.5,-200],[-11,-200],[-12,-80],[-12.5,-30]],
+    distIn: [[-8,2.7],[8,-2.7],[7,-20],[6,-50],[5.5,-80],[5.5,-200],[-5.5,-200],[-5.5,-80],[-6,-50],[-7,-20]],
+    tendon:[-20,-32]
+  }
+};
+
+const PLANES = {
+  ap: {title:'Frontal plane', view:'AP view', def:'Valgus', defNeg:'Varus', pos:'LATERAL', neg:'MEDIAL',
+       transPos:'lat', transNeg:'med', conc:'Lateral (concave)', conv:'Medial (convex)', none:'None',
+       dir:'antero-posterior', theta0:12, mode:'conc', off:7.25, above:10},
+  lat:{title:'Sagittal plane', view:'Lateral view', def:'Procurvatum', defNeg:'Recurvatum', pos:'POSTERIOR', neg:'ANTERIOR',
+       transPos:'post', transNeg:'ant', conc:'Posterior (concave)', conv:'Anterior (convex)', none:'None',
+       dir:'medio-lateral', theta0:10, mode:'conc', off:7.25, above:10}
+};
+
+function rot(p, th){ const c=Math.cos(th), s=Math.sin(th); return [p[0]*c + p[1]*s, -p[0]*s + p[1]*c]; }
+function poseFn(th, Ex){ const E=[Ex, Lp*Math.cos(th)]; return p => { const r=rot(p,th); return [E[0]+r[0], E[1]+r[1]]; }; }
+function sdist(S, A, B){ let ux=B[0]-A[0], uy=B[1]-A[1]; const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L; return (S[0]-A[0])*(-uy) + (S[1]-A[1])*ux; }
+
+function solve(pl, d){
+  const th0 = rad(pl.theta0), Ex0 = Lp*Math.sin(th0), c = clear();
+  const sg = pl.mode==='conc' ? 1 : pl.mode==='conv' ? -1 : 0;
+  const Sloc = [sg*pl.off, -(Lp - pl.above)];
+  let th = th0, Ex = Ex0, tip, E, contact=false;
+  if (d <= Lp){
+    const T = poseFn(th, Ex); E = T([0,0]);
+    let a = Math.atan2(0 - E[0], -( -E[1])) ; // angle from downward vertical toward +x
+    a = Math.atan2(-E[0], E[1]);
+    if (sg){
+      const S = T(Sloc); const q=[S[0]-E[0], S[1]-E[1]]; const L=Math.hypot(q[0],q[1]);
+      const n=[Math.cos(a), Math.sin(a)];
+      if (sg*(q[0]*n[0]+q[1]*n[1]) < c && c/L < 1){
+        const b=Math.atan2(q[1],q[0]), w=Math.acos(sg*c/L);
+        const a1=b+w, a2=b-w;
+        a = Math.abs(a1-a) < Math.abs(a2-a) ? a1 : a2; contact = true;
+      }
+    }
+    tip = [E[0]+Math.sin(a)*d, E[1]-Math.cos(a)*d];
+  } else {
+    const k = d - Lp, s0 = Math.min(k/80,1), s = s0*s0*(3-2*s0);
+    Ex = (1-s)*Ex0; const Tp=[0,-k];
+    const g = t => { const T=poseFn(t,Ex); return sg*sdist(T(Sloc), T([0,0]), Tp) - c; };
+    if (sg && g(th0) < 0){
+      let lo, hi;
+      if (sg>0){ lo=th0-0.8; hi=th0; } else { lo=th0; hi=th0+0.8; }
+      // g(hi)<0 for sg>0 side; bisection on sign
+      for (let i=0;i<50;i++){ const m=(lo+hi)/2; const gm=g(m);
+        if (sg>0){ if (gm<0) hi=m; else lo=m; } else { if (gm<0) lo=m; else hi=m; } }
+      th = (lo+hi)/2; contact = true;
+    }
+    E = poseFn(th,Ex)([0,0]); tip = Tp;
+  }
+  const T = poseFn(th, Ex);
+  const F = T([0,-Lp]);
+  return {th, Ex, E, tip, T, S: sg ? T(Sloc) : null, sg, contact, Sloc, transl: F[0]};
+}
+
+/* ---------- rendering ---------- */
+const f1 = v => v.toFixed(1);
+const P = (pts, T) => pts.map(p => { const q=T?T(p):p; return f1(q[0])+','+f1(-q[1]); }).join(' ');
+function spanAt(poly, y){ let xs=[]; for(let i=0;i<poly.length;i++){ const a=poly[i], b=poly[(i+1)%poly.length];
+  if ((a[1]-y)*(b[1]-y) <= 0 && a[1]!==b[1]){ xs.push(a[0] + (y-a[1])*(b[0]-a[0])/(b[1]-a[1])); } }
+  return xs.length ? [Math.min(...xs), Math.max(...xs)] : [-20,20]; }
+
+function nailPoly(A, B){
+  let ux=B[0]-A[0], uy=B[1]-A[1]; const L=Math.hypot(ux,uy); if (L<0.5) return null; ux/=L; uy/=L;
+  const nx=-uy, ny=ux, r=nailD/2, top=[A[0]-ux*3, A[1]-uy*3];
+  const taper = Math.min(7, L*0.4), m=[B[0]-ux*taper, B[1]-uy*taper];
+  const pts=[[top[0]+nx*r, top[1]+ny*r],[m[0]+nx*r, m[1]+ny*r],[B[0]+nx*r*0.45, B[1]+ny*r*0.45],[B[0]-nx*r*0.45, B[1]-ny*r*0.45],[m[0]-nx*r, m[1]-ny*r],[top[0]-nx*r, top[1]-ny*r]];
+  return {pts, top, B, nx, ny};
+}
+
+function render(key, d, other){
+  const pl = PLANES[key], sh = SHAPES[key], st = solve(pl, d), T = st.T;
+  let o = '';
+  o += `<defs><linearGradient id="fade-${key}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--view)" stop-opacity="0"/><stop offset="1" stop-color="var(--view)" stop-opacity="1"/></linearGradient></defs>`;
+  // distal axis
+  o += `<line x1="0" y1="-98" x2="0" y2="175" stroke="var(--axis)" stroke-width=".5" stroke-dasharray="3 3"/>`;
+  // tendon
+  if (sh.tendon){ const t=T(sh.tendon); o += `<line x1="${f1(t[0])}" y1="${f1(-t[1])}" x2="-40" y2="-100" stroke="var(--tendon)" stroke-width="6" stroke-linecap="round" opacity=".75"/>`;
+    o += `<text x="-58" y="-62" font-size="4.6" fill="var(--muted)">patellar</text><text x="-58" y="-56" font-size="4.6" fill="var(--muted)">tendon pull</text>`; }
+  // distal fragment
+  o += `<polygon points="${P(sh.dist)}" fill="var(--cortex)"/><polygon points="${P(sh.distIn)}" fill="var(--canal)"/>`;
+  // proximal fragment
+  o += `<polygon points="${P(sh.prox,T)}" fill="var(--cortex)"/><polygon points="${P(sh.proxIn,T)}" fill="var(--canc)"/>`;
+  // proximal axis
+  const a1=T([0,6]), a2=T([0,-Lp-20]);
+  o += `<line x1="${f1(a1[0])}" y1="${f1(-a1[1])}" x2="${f1(a2[0])}" y2="${f1(-a2[1])}" stroke="var(--warn)" stroke-width=".6" stroke-dasharray="4 2.5" opacity=".9"/>`;
+  // other plane's screw seen side-on
+  const op = PLANES[other];
+  if (op.mode !== 'none'){
+    const y = -(Lp - op.above), sp = spanAt(sh.prox, y), p1=T([sp[0]-3,y]), p2=T([sp[1]+3,y]);
+    o += `<line x1="${f1(p1[0])}" y1="${f1(-p1[1])}" x2="${f1(p2[0])}" y2="${f1(-p2[1])}" stroke="var(--screw)" stroke-width="${SCREW_D}" stroke-linecap="butt" opacity=".35"/>`;
+  }
+  // nail
+  if (d > 0.5){
+    const np = nailPoly(st.E, st.tip);
+    if (np){ o += `<polygon points="${P(np.pts)}" fill="var(--nail)"/>`;
+      const h1=[np.top[0]+np.nx*1.2, np.top[1]+np.ny*1.2], h2=[np.B[0]+np.nx*1.2, np.B[1]+np.ny*1.2];
+      o += `<line x1="${f1(h1[0])}" y1="${f1(-h1[1])}" x2="${f1(h2[0])}" y2="${f1(-h2[1])}" stroke="var(--nail-hi)" stroke-width="1.2" opacity=".7"/>`; }
+  }
+  // entry marker
+  o += `<circle cx="${f1(st.E[0])}" cy="${f1(-st.E[1])}" r="1.4" fill="var(--ink)"/>`;
+  // this plane's poller, end-on
+  if (st.S){ const S=st.S, r=SCREW_D/2;
+    if (st.contact && d>Lp-15) o += `<circle cx="${f1(S[0])}" cy="${f1(-S[1])}" r="${r+2.4}" fill="none" stroke="var(--accent)" stroke-width="1.1"/>`;
+    o += `<circle cx="${f1(S[0])}" cy="${f1(-S[1])}" r="${r}" fill="var(--screw)"/><circle cx="${f1(S[0])}" cy="${f1(-S[1])}" r="${r*0.45}" fill="var(--view)"/>`;
+    const lx = st.sg>0 ? S[0]+5 : S[0]-5, anc = st.sg>0 ? 'start':'end';
+    o += `<text x="${f1(lx)}" y="${f1(-S[1]-4)}" font-size="5" text-anchor="${anc}" fill="var(--ink)">poller</text>`;
+  }
+  // fade + labels
+  o += `<rect x="-80" y="130" width="160" height="46" fill="url(#fade-${key})"/>`;
+  o += `<text x="-72" y="-90" font-size="5.2" fill="var(--muted)" letter-spacing=".4">${pl.neg}</text><text x="72" y="-90" font-size="5.2" text-anchor="end" fill="var(--muted)" letter-spacing=".4">${pl.pos}</text>`;
+  o += `<text x="-72" y="170" font-size="5" fill="var(--muted)">${pl.view}</text>`;
+  // angle tag at fracture
+  const ang = deg(st.th), F=T([0,-Lp]);
+  const tagX = st.sg<0 ? -72 : 26;
+  o += `<text x="${tagX}" y="${f1(-F[1]+22)}" font-size="5.6" fill="${Math.abs(ang)<2?'var(--accent)':'var(--warn)'}">${Math.abs(ang).toFixed(1)}° ${ang>=0?pl.def.toLowerCase():pl.defNeg.toLowerCase()}</text>`;
+  document.getElementById('svg-'+key).innerHTML = o;
+  return st;
+}
+
+/* ---------- UI ---------- */
+const views = document.getElementById('views');
+for (const key of ['ap','lat']){
+  const pl = PLANES[key];
+  views.insertAdjacentHTML('beforeend', `
+  <article class="panel">
+    <div class="phead">
+      <div><h2>${pl.title}</h2><div class="sub">${pl.view} · ${pl.def.toLowerCase()} deformity</div></div>
+      <div class="readout"><div><span class="k">Initial</span><span class="v" id="ini-${key}"></span></div><div><span class="k">Now</span><span class="v" id="now-${key}"></span></div><div><span class="k">Shift</span><span class="v" id="tr-${key}"></span></div></div>
+    </div>
+    <div class="stage"><svg id="svg-${key}" viewBox="-75 -100 150 276" role="img" aria-label="${pl.view} of proximal tibia fracture with intramedullary nail"></svg></div>
+    <div class="controls">
+      <div class="ctl"><label for="th-${key}">${pl.def} before nailing</label><input type="range" id="th-${key}" min="0" max="20" step="0.5"><output id="tho-${key}"></output></div>
+      <div class="seg" role="group" aria-label="Poller screw position">
+        <button type="button" data-k="${key}" data-m="none">${pl.none}</button>
+        <button type="button" data-k="${key}" data-m="conc">${pl.conc}</button>
+        <button type="button" data-k="${key}" data-m="conv">${pl.conv}</button>
+      </div>
+      <div class="ctl"><label for="off-${key}">Offset from planned nail axis</label><input type="range" id="off-${key}" min="4" max="14" step="0.25"><output id="offo-${key}"></output></div>
+      <div class="ctl"><label for="ab-${key}">Height above fracture</label><input type="range" id="ab-${key}" min="5" max="35" step="1"><output id="abo-${key}"></output></div>
+      <p class="flag" id="msg-${key}"></p>
+    </div>
+  </article>`);
+}
+views.insertAdjacentHTML('beforeend', `<p class="note" style="grid-column:1/-1;margin-top:-8px">Nail diameter <select id="nailD" aria-label="Nail diameter"><option>9</option><option selected>10</option><option>11</option></select> mm · 4.5 mm screws · ideal offset = nail radius + screw radius = <b class="mono" id="ideal"></b>. Faint bands show the other plane's screw seen side-on. Dashed orange line = proximal fragment axis.</p>`);
+
+const depth = document.getElementById('depth');
+function syncControls(){
+  for (const key of ['ap','lat']){ const pl=PLANES[key];
+    document.getElementById('th-'+key).value = pl.theta0; document.getElementById('tho-'+key).textContent = pl.theta0.toFixed(1)+'°';
+    document.getElementById('off-'+key).value = pl.off; document.getElementById('offo-'+key).textContent = pl.off.toFixed(2)+' mm';
+    document.getElementById('ab-'+key).value = pl.above; document.getElementById('abo-'+key).textContent = pl.above+' mm';
+    document.querySelectorAll(`.seg button[data-k="${key}"]`).forEach(b=>b.setAttribute('aria-pressed', b.dataset.m===pl.mode));
+    document.getElementById('off-'+key).disabled = document.getElementById('ab-'+key).disabled = pl.mode==='none';
+  }
+  document.getElementById('ideal').textContent = clear().toFixed(2)+' mm';
+}
+
+function message(key, st, final){
+  const pl=PLANES[key], c=clear(), ang=deg(final.th);
+  const res = `${Math.abs(ang).toFixed(1)}° ${ang>=0?pl.def.toLowerCase():pl.defNeg.toLowerCase()}`;
+  if (pl.mode==='none') return ['bad', `<b>No blocking.</b> The nail sits eccentrically in the wide metaphysis, so the fragment keeps its ${pl.def.toLowerCase()} and translates. Final: ${res}.`];
+  if (pl.mode==='conv') return ['bad', `<b>Convex side.</b> The screw pushes the nail toward the concavity, so it holds or worsens the deformity. Final: ${res}.`];
+  if (Math.abs(ang) < 2) return ['good', `<b>Corrected.</b> The ${pl.conc.split(' ')[0].toLowerCase()} screw (${pl.dir}) forces the nail into the centre of the short fragment. Final: ${res}.`];
+  if (pl.off > c) return ['bad', `<b>Under-corrected.</b> The screw sits ${(pl.off-c).toFixed(1)} mm too far from the planned path. Final: ${res}.`];
+  return ['bad', `<b>Over-corrected.</b> The screw sits ${(c-pl.off).toFixed(1)} mm inside the planned path, so the nail is forced past neutral or jams. Final: ${res}.`];
+}
+
+const STEPS = [
+  [20, 'Entry portal', 'Nail starts at the entry point in line with the proximal fragment.'],
+  [Lp, 'Nail crosses the metaphysis', 'The canal here is wide. Only a poller screw can steer the nail.'],
+  [Lp+80, 'Nail engages the narrow diaphysis', 'The distal canal centres the nail. The proximal fragment must follow it.'],
+  [1e9, 'Nail seated', 'Final alignment is fixed by the nail–screw contact.']
+];
+function draw(){
+  const d = depth.value/1000*MAXD;
+  document.getElementById('depthOut').textContent = Math.round(d)+' mm';
+  for (const [key, other] of [['ap','lat'],['lat','ap']]){
+    const pl=PLANES[key], st=render(key, d, other), fin=solve(pl, MAXD);
+    const ang=deg(st.th), now=document.getElementById('now-'+key);
+    document.getElementById('ini-'+key).textContent = pl.theta0.toFixed(1)+'°';
+    now.textContent = (ang<0?'−':'')+Math.abs(ang).toFixed(1)+'°';
+    now.className = 'v '+(Math.abs(ang)<2?'ok':'bad');
+    const tr=st.transl; document.getElementById('tr-'+key).textContent = Math.abs(tr)<0.5 ? '0 mm' : Math.abs(tr).toFixed(0)+' mm '+(tr>0?pl.transPos:pl.transNeg);
+    const [cls, txt] = message(key, st, fin); const m=document.getElementById('msg-'+key); m.className='flag '+cls; m.innerHTML=txt;
+  }
+  const i = STEPS.findIndex(s => d < s[0]);
+  document.getElementById('stepN').textContent = i+1; document.getElementById('stepT').textContent = STEPS[i][1]; document.getElementById('stepD').textContent = STEPS[i][2];
+}
+
+let raf=null, t0=0, startVal=0;
+const play = document.getElementById('play');
+function stop(){ if(raf) cancelAnimationFrame(raf); raf=null; play.textContent = depth.value>=1000 ? 'Replay' : 'Insert nail'; }
+play.addEventListener('click', ()=>{
+  if (raf){ stop(); return; }
+  if (depth.value>=1000) depth.value=0;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches){ depth.value=1000; draw(); stop(); return; }
+  startVal=+depth.value; t0=performance.now(); play.textContent='Pause';
+  const dur = 7000*(1-startVal/1000);
+  const tick = now => { const p=Math.min((now-t0)/dur,1); depth.value = startVal + (1000-startVal)*p; draw(); if(p<1) raf=requestAnimationFrame(tick); else { raf=null; stop(); } };
+  raf=requestAnimationFrame(tick);
+});
+depth.addEventListener('input', ()=>{ if(raf) stop(); draw(); });
+
+views.addEventListener('input', e=>{
+  const id=e.target.id; if(!id) return; const [p,key]=id.split('-'); const pl=PLANES[key]; if(!pl) return;
+  if(p==='th') pl.theta0=+e.target.value; if(p==='off') pl.off=+e.target.value; if(p==='ab') pl.above=+e.target.value;
+  clearPreset(); syncControls(); draw();
+});
+views.addEventListener('click', e=>{ const b=e.target.closest('.seg button'); if(!b) return; PLANES[b.dataset.k].mode=b.dataset.m; clearPreset(); syncControls(); draw(); });
+document.getElementById('nailD').addEventListener('change', e=>{ nailD=+e.target.value; syncControls(); draw(); });
+
+const presets = document.getElementById('presets');
+function clearPreset(){ presets.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed','false')); }
+presets.addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return; const p=b.dataset.p, c=clear();
+  for (const key of ['ap','lat']){ const pl=PLANES[key]; pl.above=10;
+    pl.mode = p==='none' ? 'none' : p==='wrong' ? 'conv' : 'conc';
+    pl.off = p==='far' ? c+4.5 : c; }
+  clearPreset(); b.setAttribute('aria-pressed','true'); syncControls(); stop(); depth.value=0; draw();
+});
+
+syncControls(); depth.value = 1000; draw(); depth.value = 0; draw();
+})();
+</script>
+
+</body></html>
